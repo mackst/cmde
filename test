@@ -1,0 +1,108 @@
+import os
+
+from html.parser import HTMLParser
+
+
+returnTypeCmds = []
+
+class ReturnValueHTMLParser(HTMLParser):
+
+    def __init__(self):
+        super(ReturnValueHTMLParser, self).__init__()
+        self._returnValueCount = 0
+        self._dataReadCount = 0
+        self._returnValue = ''
+        self._isTitle = False
+        self._title = ''
+
+    def handle_starttag(self, tag, attrs):
+        # print("Encountered a start tag:", tag)
+        if tag == 'title':
+            self._isTitle = True
+
+    def handle_endtag(self, tag):
+        # print("Encountered an end tag :", tag)
+        if 'node name' in self._returnValue:
+            print(self._title)
+            returnTypeCmds.append(self._title.split(' ')[0])
+
+    def handle_data(self, data):
+        # print("Encountered some data  :", data)
+        if self._isTitle:
+            self._title = data
+            self._isTitle = False
+
+        if self._returnValueCount == 2 and self._dataReadCount < 3:
+            self._returnValue += data + ' '
+            print(self._returnValue)
+            self._dataReadCount += 1
+            # self._returnValueCount = 0
+
+        if data == 'Return value':
+            # print(self._returnValueCount)
+            if self._returnValueCount < 2:
+                self._returnValueCount += 1
+
+
+
+
+# f = r'D:\docs\MayaHelp2018_4_Update_enu\CommandsPython\polyCube.html'
+d = r'D:\docs\MayaHelp2018_4_Update_enu\CommandsPython'
+for i in os.listdir(d):
+    f = os.path.join(d, i)
+    with open(f) as html_f:
+        parser = ReturnValueHTMLParser()
+        parser.feed(html_f.read())
+
+
+print(returnTypeCmds)
+
+
+
+
+
+
+from collections import OrderedDict
+
+import maya.api.OpenMaya as om
+
+
+from maya import cmds
+
+
+
+class Utils(object):
+
+    @staticmethod
+    def getMObject(name):
+        selList = om.MSelectionList().add(name)
+        return selList.getDependNode(0)
+
+
+class FunctionSetDecorator(object):
+
+    FuncSets = OrderedDict(
+        sorted({
+            om.MFn.kDependencyNode: om.MFnDependencyNode,  # 4
+            om.MFn.kDagNode: om.MFnDagNode,                # 107
+            om.MFn.kTransform: om.MFnTransform,            # 110
+            om.MFn.kCamera: om.MFnCamera,                  # 250
+            om.MFn.kNurbsCurve: om.MFnNurbsCurve,          # 267
+            om.MFn.kNurbsSurface: om.MFnNurbsSurface,      # 294
+            om.MFn.kMesh: om.MFnMesh,                      # 296
+            om.MFn.kSet: om.MFnSet,                        # 467
+            om.MFn.kComponent: om.MFnComponent,            # 531
+            om.MFn.kReference: om.MFnReference,            # 750
+            om.MFn.kContainer: om.MFnContainerNode,        # 1006
+        }.items(), key=lambda t: t[0])
+    )
+
+    def getFuncSetClass(self, name):
+        mobj = Utils.getMObject(name)
+        for i in reversed(FunctionSetDecorator.FuncSets):
+            if mobj.hasFn(i):
+                return FunctionSetDecorator.FuncSets[i](mobj)
+        return mobj
+
+    def __call__(self, func, *args, **kwargs):
+        return [self.getFuncSetClass(i) for i in func(*args, **kwargs)]
